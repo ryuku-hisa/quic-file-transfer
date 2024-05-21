@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/quic-go/quic-go"
@@ -17,6 +18,14 @@ func main() {
 	// 証明書と秘密鍵のパスを定義
 	const certPath = "tls/server.crt"
 	const keyPath = "tls/server.key"
+
+	// 保存先のディレクトリを定義
+	const dataDirPath = "receivedData"
+
+	// "receivedData" ディレクトリを作成します．
+	if err := os.MkdirAll(dataDirPath, 0777); err != nil {
+		log.Fatalf("failed to create directory: %v", err)
+	}
 
 	// 証明書ファイルを読み込み
 	cert, err := tls.LoadX509KeyPair(certPath, keyPath)
@@ -39,15 +48,18 @@ func main() {
 		}
 
 		// ファイルをフォームデータから取得
-		file, _, err := r.FormFile("file")
+		file, header, err := r.FormFile("file")
 		if err != nil {
 			http.Error(w, "Unable to read file", http.StatusBadRequest)
 			return
 		}
 		defer file.Close()
 
+		// 保存先のパスを生成
+		savePath := filepath.Join(dataDirPath, header.Filename)
+
 		// 受け取ったファイルを保存
-		outFile, err := os.Create("received_file")
+		outFile, err := os.Create(savePath)
 		if err != nil {
 			http.Error(w, "Unable to create file", http.StatusInternalServerError)
 			return
@@ -61,7 +73,7 @@ func main() {
 		}
 
 		// 成功メッセージを送信
-		fmt.Fprintf(w, "File received successfully")
+		fmt.Fprintf(w, "File received successfully and saved as %s", savePath)
 	})
 
 	// QUICプロトコルの設定
